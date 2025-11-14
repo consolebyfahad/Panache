@@ -1,0 +1,33 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "src/assets/fonts/BaiJamjuree-Bold.ttf",
+      "sha1": "50088f5f00a63964bc0d98d82924dc5ff4a5645c"
+    },
+    {
+      "path": "src/assets/fonts/BaiJamjuree-Light.ttf",
+      "sha1": "b977777badfed5300267d0a7dff5efe235f04a59"
+    },
+    {
+      "path": "src/assets/fonts/BaiJamjuree-Medium.ttf",
+      "sha1": "068f3ac74c49f211f6a77181e184773ebb5678b6"
+    },
+    {
+      "path": "src/assets/fonts/BaiJamjuree-Regular.ttf",
+      "sha1": "6665982520c8dafe80ea867de83e1e1cfe93374b"
+    },
+    {
+      "path": "src/assets/fonts/BaiJamjuree-SemiBold.ttf",
+      "sha1": "78d293f56f47bd1b0ea44d790931e7712e71dc43"
+    },
+    {
+      "path": "src/assets/fonts/OFL.txt",
+      "sha1": "800dc49e26c15519d7db433e2d8c256fbf8ed7be"
+    },
+    {
+      "path": "src/assets/fonts/index.js",
+      "sha1": "d4477899423e0295c8b66b663da8f94c301c76d8"
+    }
+  ]
+}
