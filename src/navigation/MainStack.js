@@ -14,6 +14,7 @@ import TagScan from "../screens/Main/MyTag";
 import EditProfile from "../screens/Main/Profile/EditProfile";
 import Request from "../screens/Main/DateRequest";
 import PersonalDetails from "../screens/Main/Profile/PersonalDetails";
+import FaceVerification from "../screens/Main/Profile/FaceVerification";
 
 const Stack = createNativeStackNavigator();
 
@@ -37,7 +38,7 @@ const MainStack = () => {
       <Stack.Screen name="EditProfile" component={EditProfile} />
       <Stack.Screen name="Request" component={Request} />
       <Stack.Screen name="PersonalDetails" component={PersonalDetails} />
-
+      <Stack.Screen name="FaceVerification" component={FaceVerification} />
     </Stack.Navigator>
   );
 };

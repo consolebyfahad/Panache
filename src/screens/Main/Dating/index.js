@@ -21,70 +21,20 @@ import { ApiRequest } from "../../../Services/ApiRequest";
 import NoDataFound from "../../../components/NoDataFound";
 import { useIsFocused } from "@react-navigation/native";
 
-const DUMMY_DATA = [
-  {
-    id: "1",
-    first_name: "Sarah",
-    last_name: "Johnson",
-    image: "https://randomuser.me/api/portraits/women/1.jpg",
-  },
-  {
-    id: "2",
-    first_name: "Michael",
-    last_name: "Smith",
-    image: "https://randomuser.me/api/portraits/men/1.jpg",
-  },
-  {
-    id: "3",
-    first_name: "Emily",
-    last_name: "Davis",
-    image: "https://randomuser.me/api/portraits/women/2.jpg",
-  },
-  {
-    id: "4",
-    first_name: "James",
-    last_name: "Wilson",
-    image: "https://randomuser.me/api/portraits/men/2.jpg",
-  },
-  {
-    id: "5",
-    first_name: "Jessica",
-    last_name: "Brown",
-    image: "https://randomuser.me/api/portraits/women/3.jpg",
-  },
-  {
-    id: "6",
-    first_name: "David",
-    last_name: "Martinez",
-    image: "https://randomuser.me/api/portraits/men/3.jpg",
-  },
-  {
-    id: "7",
-    first_name: "Lisa",
-    last_name: "Anderson",
-    image: "https://randomuser.me/api/portraits/women/4.jpg",
-  },
-  {
-    id: "8",
-    first_name: "Robert",
-    last_name: "Taylor",
-    image: "https://randomuser.me/api/portraits/men/4.jpg",
-  },
-];
-
 const Date = ({ navigation }) => {
   const isToken = useSelector((state) => state.authConfig.token);
   const isfocued = useIsFocused();
   const spinValue = useRef(new Animated.Value(0)).current;
-  const [datingArray, setDatingArray] = useState([]); 
-  const [allProfiles, setAllProfiles] = useState(DUMMY_DATA);
+  const [datingArray, setDatingArray] = useState([]);
+  const [allProfiles, setAllProfiles] = useState([]);
   const [viewedProfileIds, setViewedProfileIds] = useState([]); // Track viewed profiles
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const getRandomProfiles = (profilesArray, count = 4) => {
     // Filter out already viewed profiles
     const availableProfiles = profilesArray.filter(
-      profile => !viewedProfileIds.includes(profile.id)
+      (profile) => !viewedProfileIds.includes(profile.id)
     );
 
     if (availableProfiles.length === 0) {
@@ -96,12 +46,11 @@ const Date = ({ navigation }) => {
     if (availableProfiles.length <= count) {
       return availableProfiles;
     }
-    
+
     const shuffled = [...availableProfiles].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, count);
   };
 
-  // Simulating an API call
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -111,13 +60,28 @@ const Date = ({ navigation }) => {
       };
 
       const response = await ApiRequest(data);
-      const profiles = response?.data?.profile || DUMMY_DATA;
-      setAllProfiles(profiles); 
-      setDatingArray(getRandomProfiles(profiles, 4)); 
+      console.log("response", JSON.stringify(response));
+
+      // Check if API response is successful
+      if (response?.data?.result === true && response?.data?.profile) {
+        const profiles = Array.isArray(response.data.profile)
+          ? response.data.profile
+          : [];
+        setAllProfiles(profiles);
+        setDatingArray(getRandomProfiles(profiles, 4));
+        setErrorMessage(""); // Clear error message on success
+      } else {
+        // API returned false or no profiles
+        const message = response?.data?.message || "No date found!";
+        setErrorMessage(message);
+        setAllProfiles([]);
+        setDatingArray([]);
+      }
     } catch (error) {
       console.error("Error fetching data:", error);
-      setAllProfiles(DUMMY_DATA);
-      setDatingArray(getRandomProfiles(DUMMY_DATA, 4));
+      setErrorMessage("Error fetching data. Please try again.");
+      setAllProfiles([]);
+      setDatingArray([]);
     } finally {
       setLoading(false);
     }
@@ -125,8 +89,8 @@ const Date = ({ navigation }) => {
 
   const spinWheel = async () => {
     // Mark current profiles as viewed before spinning
-    const currentProfileIds = datingArray.map(profile => profile.id);
-    setViewedProfileIds(prev => [...prev, ...currentProfileIds]);
+    const currentProfileIds = datingArray.map((profile) => profile.id);
+    setViewedProfileIds((prev) => [...prev, ...currentProfileIds]);
 
     Animated.timing(spinValue, {
       toValue: 1,
@@ -137,9 +101,9 @@ const Date = ({ navigation }) => {
       // Get new profiles excluding the ones just marked as viewed
       const updatedViewedIds = [...viewedProfileIds, ...currentProfileIds];
       const availableProfiles = allProfiles.filter(
-        profile => !updatedViewedIds.includes(profile.id)
+        (profile) => !updatedViewedIds.includes(profile.id)
       );
-      
+
       if (availableProfiles.length === 0) {
         // Reset if all profiles viewed
         setViewedProfileIds([]);
@@ -150,7 +114,7 @@ const Date = ({ navigation }) => {
         const shuffled = [...availableProfiles].sort(() => 0.5 - Math.random());
         setDatingArray(shuffled.slice(0, 4));
       }
-      
+
       animateListItems();
     });
   };
@@ -214,7 +178,9 @@ const Date = ({ navigation }) => {
               colors={[COLORS.primaryColor]}
             />
           }
-          ListEmptyComponent={<NoDataFound title={"No date found!"} />}
+          ListEmptyComponent={
+            <NoDataFound title={"No date found!"} desc={errorMessage} />
+          }
           renderItem={({ item, index }) => {
             const scale = itemAnimations[index] || new Animated.Value(1);
             return (
@@ -271,9 +237,9 @@ export default Date;
 const styles = StyleSheet.create({
   DateCard: {
     backgroundColor: "#323232",
-    height: 120, 
+    height: 120,
     borderRadius: 20,
-    marginTop: 15, 
+    marginTop: 15,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -281,8 +247,8 @@ const styles = StyleSheet.create({
     paddingRight: 25,
   },
   icn: {
-    height: 95, 
-    width: 95, 
-    borderRadius: 20, 
+    height: 95,
+    width: 95,
+    borderRadius: 20,
   },
 });

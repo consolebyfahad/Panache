@@ -59,9 +59,9 @@ const EditProfile = () => {
   }, [userData]);
 
   const dispatch = useDispatch();
-  const navigate = useNavigation();
+  const navigation = useNavigation();
 
-  // Changed from viewImages to viewVideos
+  // Support both images and videos
   const [viewVideos, setViewVideos] = useState({
     view1: [],
     view2: [],
@@ -93,13 +93,38 @@ const EditProfile = () => {
       if (userData?.user_gallery) {
         try {
           fixedData = JSON.parse(userData.user_gallery);
+          // Determine if URL is image or video based on extension or path
+          const getMediaType = (url) => {
+            if (!url) return "video"; // default
+            const lowerUrl = url.toLowerCase();
+            if (lowerUrl.includes("/videos/")) return "video";
+            if (
+              lowerUrl.includes("/images/") ||
+              lowerUrl.match(/\.(jpg|jpeg|png|gif|webp)$/)
+            )
+              return "image";
+            return "video"; // default fallback
+          };
+
           setViewVideos({
-            view1: [{ url: fixedData[0] }],
-            view2: [{ url: fixedData[1] }],
-            view3: [{ url: fixedData[2] }],
-            view4: [{ url: fixedData[3] }],
-            view5: [{ url: fixedData[4] }],
-            view6: [{ url: fixedData[5] }],
+            view1: fixedData[0]
+              ? [{ url: fixedData[0], type: getMediaType(fixedData[0]) }]
+              : [],
+            view2: fixedData[1]
+              ? [{ url: fixedData[1], type: getMediaType(fixedData[1]) }]
+              : [],
+            view3: fixedData[2]
+              ? [{ url: fixedData[2], type: getMediaType(fixedData[2]) }]
+              : [],
+            view4: fixedData[3]
+              ? [{ url: fixedData[3], type: getMediaType(fixedData[3]) }]
+              : [],
+            view5: fixedData[4]
+              ? [{ url: fixedData[4], type: getMediaType(fixedData[4]) }]
+              : [],
+            view6: fixedData[5]
+              ? [{ url: fixedData[5], type: getMediaType(fixedData[5]) }]
+              : [],
           });
         } catch (error) {
           console.error("Error parsing user gallery:", error);
@@ -120,6 +145,53 @@ const EditProfile = () => {
     setVideoModal(true);
   };
 
+  // Image functions
+  const recordImageFromCamera = () => {
+    try {
+      const options = {
+        mediaType: "photo",
+        quality: 0.8,
+        cropping: true,
+        includeBase64: false,
+      };
+      setVideoModal(false);
+      setTimeout(async () => {
+        const result = await openCamera(options);
+        if (result) {
+          uploadAndGetUrl(result, isToken).then((res) => {
+            const url = `http://portal.ivmsgroup.com/panache/images/${res}`;
+            handleMediaSelection(url, "image");
+          });
+        }
+      }, 500);
+    } catch (error) {
+      console.log("recordImageFromCamera error", error);
+    }
+  };
+
+  const selectImageFromLibrary = async () => {
+    try {
+      const options = {
+        mediaType: "photo",
+        quality: 0.8,
+        cropping: true,
+      };
+      setVideoModal(false);
+      setTimeout(async () => {
+        const result = await openPicker(options);
+        if (result) {
+          uploadAndGetUrl(result, isToken).then((res) => {
+            const url = `http://portal.ivmsgroup.com/panache/images/${res}`;
+            handleMediaSelection(url, "image");
+          });
+        }
+      }, 1000);
+    } catch (error) {
+      console.log("selectImageFromLibrary error", error);
+    }
+  };
+
+  // Video functions
   const recordVideoFromCamera = () => {
     try {
       const options = {
@@ -141,10 +213,10 @@ const EditProfile = () => {
             ToastMessage("Video must be at least 60 seconds long");
             return;
           }
-          
+
           uploadAndGetUrl(result, isToken).then((res) => {
             const url = `http://portal.ivmsgroup.com/panache/videos/${res}`;
-            handleVideoSelection(url);
+            handleMediaSelection(url, "video");
           });
         }
       }, 500);
@@ -176,7 +248,7 @@ const EditProfile = () => {
 
           uploadAndGetUrl(result, isToken).then((res) => {
             const url = `http://portal.ivmsgroup.com/panache/videos/${res}`;
-            handleVideoSelection(url);
+            handleMediaSelection(url, "video");
           });
         }
       }, 1000);
@@ -185,13 +257,26 @@ const EditProfile = () => {
     }
   };
 
-  const handleVideoSelection = (uploadedUrl) => {
-    setViewVideos((prev) => ({
-      ...prev,
-      [currentView]: [{ url: uploadedUrl }],
-    }));
+  const handleMediaSelection = (uploadedUrl, type) => {
     setVideoModal(false);
-    ToastMessage("Video uploaded successfully");
+
+    // Navigate to face verification screen
+    navigation.navigate("FaceVerification", {
+      uploadedImageUri: uploadedUrl,
+      mediaType: type,
+      onVerificationSuccess: () => {
+        // After verification success, save the media
+        setViewVideos((prev) => ({
+          ...prev,
+          [currentView]: [{ url: uploadedUrl, type: type }],
+        }));
+        ToastMessage(
+          `${
+            type === "image" ? "Image" : "Video"
+          } uploaded and verified successfully`
+        );
+      },
+    });
   };
 
   const handleVideoDelete = (view) => {
@@ -220,7 +305,7 @@ const EditProfile = () => {
       type: "update_data",
       table_name: "users",
       id: isToken,
-      image: allUrls[0], // First video as main
+      image: allUrls[0], // First media (image or video) as main
       user_gallery: JSON.stringify(allUrls),
       gender_interest: selectedNames,
       bio: Bio,
@@ -267,25 +352,38 @@ const EditProfile = () => {
     );
   };
 
-  const VideoThumbnail = ({ videoUrl, view, index }) => {
+  const VideoThumbnail = ({ videoUrl, view, index, mediaType }) => {
+    const isImage = mediaType === "image";
+    const isVideo = mediaType === "video";
+
     return (
       <View style={{ width: "99%", height: "100%", borderRadius: 15 }}>
         {videoUrl ? (
           <>
-            <Video
-              source={{ uri: videoUrl }}
-              style={{ width: "100%", height: "100%", borderRadius: 15 }}
-              paused={true}
-              resizeMode="cover"
-            />
-            <View style={styles.videoPlayIcon}>
-              <Icons
-                name={"play-circle"}
-                family={"Feather"}
-                color={COLORS.white}
-                size={40}
+            {isImage ? (
+              <ImageFast
+                source={{ uri: videoUrl }}
+                style={{ width: "100%", height: "100%", borderRadius: 15 }}
+                resizeMode="cover"
               />
-            </View>
+            ) : (
+              <Video
+                source={{ uri: videoUrl }}
+                style={{ width: "100%", height: "100%", borderRadius: 15 }}
+                paused={true}
+                resizeMode="cover"
+              />
+            )}
+            {isVideo && (
+              <View style={styles.videoPlayIcon}>
+                <Icons
+                  name={"play-circle"}
+                  family={"Feather"}
+                  color={COLORS.white}
+                  size={40}
+                />
+              </View>
+            )}
             <View style={styles.videoOverlay}>
               <View style={styles.videoBadge}>
                 <CustomText
@@ -307,13 +405,13 @@ const EditProfile = () => {
         ) : (
           <View style={styles.emptyVideoContainer}>
             <Icons
-              name={"video"}
+              name={"plus-circle"}
               family={"Feather"}
               color={COLORS.gray}
               size={40}
             />
             <CustomText
-              label={"60-90 sec"}
+              label={"Add Media"}
               color={COLORS.gray}
               fontSize={10}
               marginTop={5}
@@ -330,14 +428,14 @@ const EditProfile = () => {
       headerUnScrollable={() => <Header title={"Edit Profile"} />}
     >
       <CustomText
-        label={"Profile Videos"}
+        label={"Profile Media"}
         color={COLORS.white}
         fontFamily={fonts.bold}
         fontSize={18}
         marginBottom={5}
       />
       <CustomText
-        label={"Record 60-90 second videos to showcase yourself"}
+        label={"Add images or record 60-90 second videos to showcase yourself"}
         color={COLORS.gray}
         fontFamily={fonts.medium}
         fontSize={12}
@@ -361,6 +459,7 @@ const EditProfile = () => {
             videoUrl={viewVideos?.view1[0]?.url}
             view="view1"
             index={0}
+            mediaType={viewVideos?.view1[0]?.type || "video"}
           />
         </TouchableOpacity>
 
@@ -373,6 +472,7 @@ const EditProfile = () => {
               videoUrl={viewVideos?.view2[0]?.url}
               view="view2"
               index={2}
+              mediaType={viewVideos?.view2[0]?.type || "video"}
             />
           </TouchableOpacity>
           <TouchableOpacity
@@ -383,6 +483,7 @@ const EditProfile = () => {
               videoUrl={viewVideos?.view3[0]?.url}
               view="view3"
               index={3}
+              mediaType={viewVideos?.view3[0]?.type || "video"}
             />
           </TouchableOpacity>
         </View>
@@ -405,6 +506,7 @@ const EditProfile = () => {
             videoUrl={viewVideos?.view4[0]?.url}
             view="view4"
             index={4}
+            mediaType={viewVideos?.view4[0]?.type || "video"}
           />
         </TouchableOpacity>
         <TouchableOpacity
@@ -415,6 +517,7 @@ const EditProfile = () => {
             videoUrl={viewVideos?.view5[0]?.url}
             view="view5"
             index={5}
+            mediaType={viewVideos?.view5[0]?.type || "video"}
           />
         </TouchableOpacity>
         <TouchableOpacity
@@ -425,6 +528,7 @@ const EditProfile = () => {
             videoUrl={viewVideos?.view6[0]?.url}
             view="view6"
             index={6}
+            mediaType={viewVideos?.view6[0]?.type || "video"}
           />
         </TouchableOpacity>
       </View>
@@ -576,10 +680,7 @@ const EditProfile = () => {
         </CustomModal>
       </View>
 
-      <CustomText
-        label={"Gender Interests"}
-        color={COLORS.primaryColor}
-      />
+      <CustomText label={"Gender Interests"} color={COLORS.primaryColor} />
 
       <View
         style={{
@@ -631,6 +732,7 @@ const EditProfile = () => {
         marginBottom={10}
       />
 
+      {/* Media Selection Modal - Images and Videos */}
       <CustomModal
         isChange
         isVisible={videoModal}
@@ -648,7 +750,7 @@ const EditProfile = () => {
             onPress={() => setVideoModal(false)}
           />
           <CustomText
-            label="Record or Choose Video"
+            label="Add Image or Video"
             fontSize={18}
             fontFamily={fonts.bold}
             alignSelf="center"
@@ -656,24 +758,55 @@ const EditProfile = () => {
             color={COLORS.white}
           />
           <CustomText
-            label="Video must be 60-90 seconds"
+            label="Choose image or record 60-90 second video"
             fontSize={12}
             fontFamily={fonts.regular}
             alignSelf="center"
             marginBottom={30}
             color={COLORS.gray}
           />
-          <View style={styles.modalIconContainer}>
-            <ModalIcons
-              source={image.gallery}
-              title="Choose Video"
-              onPress={selectVideoFromLibrary}
-            />
-            <ModalIcons
-              source={image.camera}
-              title="Record Video"
-              onPress={recordVideoFromCamera}
-            />
+          <View
+            style={[
+              styles.modalIconContainer,
+              { flexDirection: "column", gap: 20 },
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-around",
+                width: "100%",
+              }}
+            >
+              <ModalIcons
+                source={image.gallery}
+                title="Choose Image"
+                onPress={selectImageFromLibrary}
+              />
+              <ModalIcons
+                source={image.camera}
+                title="Take Photo"
+                onPress={recordImageFromCamera}
+              />
+            </View>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-around",
+                width: "100%",
+              }}
+            >
+              <ModalIcons
+                source={image.gallery}
+                title="Choose Video"
+                onPress={selectVideoFromLibrary}
+              />
+              <ModalIcons
+                source={image.camera}
+                title="Record Video"
+                onPress={recordVideoFromCamera}
+              />
+            </View>
           </View>
         </View>
       </CustomModal>
