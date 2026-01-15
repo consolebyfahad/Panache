@@ -38,7 +38,9 @@
 	<key>NSAppleMusicUsageDescription</key>
 	<string>PANACHE requires access to your media library to allow you to upload and display photos and videos on your profile.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>PANACHE wants to access camera to upload pictures for profile.</string>
+	<string>PANACHE wants to access camera to upload pictures and record videos for profile.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>PANACHE needs microphone access to record videos for your profile.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>PANACHE wants to access location to add your location to your profile to help you to better find events</string>
 	<key>NSLocationAlwaysUsageDescription</key>

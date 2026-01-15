@@ -17,21 +17,86 @@ export const passwordRegex =
   
   export const uploadAndGetUrl = async (file, user_id) => {
     try {
-      const resizeUri = await ImageCompressor.compress(
-        file.fileCopyUri || file.path
-      );
-  
-      const uploadUri = Platform.OS === 'ios' 
-        ? resizeUri.replace('file://', '') 
-        : resizeUri;
+      console.log('uploadAndGetUrl - file:', file);
+      console.log('uploadAndGetUrl - file.path:', file.path);
+      console.log('uploadAndGetUrl - file.mime:', file.mime);
+      
+      // Determine if file is video or image
+      const isVideo = file.mime?.startsWith('video/') || 
+                     file.path?.toLowerCase().match(/\.(mp4|mov|avi|mkv|webm)$/);
+      const isImage = file.mime?.startsWith('image/') || 
+                     file.path?.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|heic)$/);
+      
+      console.log('uploadAndGetUrl - isVideo:', isVideo);
+      console.log('uploadAndGetUrl - isImage:', isImage);
+      
+      let uploadUri;
+      let mimeType;
+      let fileName;
+      
+      if (isVideo) {
+        // For videos, use the original path without compression
+        const originalPath = file.fileCopyUri || file.path;
+        console.log('uploadAndGetUrl - original video path:', originalPath);
+        
+        uploadUri = Platform.OS === 'ios' 
+          ? originalPath.replace('file://', '') 
+          : originalPath;
+        
+        // Determine MIME type from file or default to mp4
+        mimeType = file.mime || 'video/mp4';
+        
+        // Generate filename with correct extension
+        const extension = file.mime?.includes('mov') ? 'mov' : 
+                         file.mime?.includes('mp4') ? 'mp4' : 
+                         file.filename?.split('.').pop() || 'mp4';
+        fileName = `video_${new Date().toISOString().replace(/[.:-]+/g, '_')}.${extension}`;
+        
+        console.log('uploadAndGetUrl - video uploadUri:', uploadUri);
+        console.log('uploadAndGetUrl - video mimeType:', mimeType);
+        console.log('uploadAndGetUrl - video fileName:', fileName);
+      } else {
+        // For images, compress first
+        const originalPath = file.fileCopyUri || file.path;
+        console.log('uploadAndGetUrl - original image path:', originalPath);
+        
+        const resizeUri = await ImageCompressor.compress(originalPath);
+        console.log('uploadAndGetUrl - compressed image path:', resizeUri);
+        
+        uploadUri = Platform.OS === 'ios' 
+          ? resizeUri.replace('file://', '') 
+          : resizeUri;
+        
+        mimeType = file.mime || 'image/jpeg';
+        const extension = file.mime?.includes('png') ? 'png' : 
+                         file.mime?.includes('jpg') || file.mime?.includes('jpeg') ? 'jpg' : 
+                         'jpg';
+        fileName = `image_${new Date().toISOString().replace(/[.:-]+/g, '_')}.${extension}`;
+        
+        console.log('uploadAndGetUrl - image uploadUri:', uploadUri);
+        console.log('uploadAndGetUrl - image mimeType:', mimeType);
+        console.log('uploadAndGetUrl - image fileName:', fileName);
+      }
+      
+      // Validate uploadUri is not empty
+      if (!uploadUri || uploadUri.trim() === '') {
+        console.error('uploadAndGetUrl - uploadUri is empty!');
+        throw new Error('File path is empty. Please try again.');
+      }
   
       const formData = new FormData();
       formData.append('type', 'upload_data');
       formData.append('user_id', user_id);
       formData.append('file', {
         uri: uploadUri,
-        name: `image_${new Date().toISOString().replace(/[.:-]+/g, '_')}.jpg`,
-        type: 'image/jpeg',
+        name: fileName,
+        type: mimeType,
+      });
+      
+      console.log('uploadAndGetUrl - formData file object:', {
+        uri: uploadUri,
+        name: fileName,
+        type: mimeType,
       });
   
       const response = await axios.post('http://portal.ivmsgroup.com/panache/api.php', formData, {
@@ -39,21 +104,22 @@ export const passwordRegex =
           'Content-Type': 'multipart/form-data',
         },
       });
-
       
+      console.log('uploadAndGetUrl - response:', response?.data);
 
       if (response?.data?.file_name) {
-
         const uploadedFileUrl = response.data.file_name; 
         ToastMessage('Upload Successfully');
-
+        console.log('uploadAndGetUrl - uploaded file URL:', uploadedFileUrl);
         return uploadedFileUrl;
       } else {
         throw new Error(response.data.message || 'Failed to upload file');
       }
     } catch (err) {
-      console.log('Upload error:', err.message || err);
+      console.error('uploadAndGetUrl - Upload error:', err.message || err);
+      console.error('uploadAndGetUrl - Error stack:', err.stack);
       ToastMessage('Upload Again');
+      throw err; // Re-throw to allow caller to handle
     }
   };
   

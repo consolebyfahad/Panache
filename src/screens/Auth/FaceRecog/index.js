@@ -50,8 +50,18 @@ const FaceRecog = ({ navigation, route }) => {
   }, []);
 
   const requestCameraPermission = async () => {
+    await checkPermission();
+  };
+
+  const checkPermission = async () => {
+    console.log("checkPermission");
     const permission = await Camera.requestCameraPermission();
-    setHasPermission(permission === "authorized");
+    console.log("permission", permission);
+    if (permission === "granted") {
+      setHasPermission(true);
+    } else {
+      setHasPermission(false);
+    }
   };
 
   // Capture photo
@@ -85,8 +95,11 @@ const FaceRecog = ({ navigation, route }) => {
       formData.append("api_key", FACE_PLUS_PLUS_API_KEY);
       formData.append("api_secret", FACE_PLUS_PLUS_API_SECRET);
       formData.append("return_landmark", "1");
-      formData.append("return_attributes", "gender,age,smiling,headpose,facequality,blur,eyestatus,emotion,ethnicity,beauty,mouthstatus,eyegaze,skinstatus");
-      
+      formData.append(
+        "return_attributes",
+        "gender,age,smiling,headpose,facequality,blur,eyestatus,emotion,ethnicity,beauty,mouthstatus,eyegaze,skinstatus"
+      );
+
       formData.append("image_file", {
         uri: `file://${imagePath}`,
         type: "image/jpeg",
@@ -106,7 +119,7 @@ const FaceRecog = ({ navigation, route }) => {
 
       if (result.faces && result.faces.length > 0) {
         const face = result.faces[0];
-        
+
         // Verify it's a real human face
         const isRealFace = validateFaceQuality(face);
 
@@ -128,13 +141,17 @@ const FaceRecog = ({ navigation, route }) => {
           setFaceDetected(false);
           setCapturedImage(null);
           setIsDetecting(false);
-          ToastMessage("Face quality check failed. Please try again in good lighting.");
+          ToastMessage(
+            "Face quality check failed. Please try again in good lighting."
+          );
         }
       } else {
         setFaceDetected(false);
         setCapturedImage(null);
         setIsDetecting(false);
-        ToastMessage("No face detected. Please position your face in the frame.");
+        ToastMessage(
+          "No face detected. Please position your face in the frame."
+        );
       }
     } catch (error) {
       console.error("Face detection error:", error);
@@ -162,9 +179,11 @@ const FaceRecog = ({ navigation, route }) => {
     }
 
     // Check if eyes are open (anti-spoofing)
-    const leftEyeStatus = attributes?.eyestatus?.left_eye_status?.normal_glass_eye_open || 0;
-    const rightEyeStatus = attributes?.eyestatus?.right_eye_status?.normal_glass_eye_open || 0;
-    
+    const leftEyeStatus =
+      attributes?.eyestatus?.left_eye_status?.normal_glass_eye_open || 0;
+    const rightEyeStatus =
+      attributes?.eyestatus?.right_eye_status?.normal_glass_eye_open || 0;
+
     if (leftEyeStatus < 50 || rightEyeStatus < 50) {
       console.log("Eyes not properly detected");
       return false;
@@ -215,7 +234,7 @@ const FaceRecog = ({ navigation, route }) => {
       if (response?.data?.result) {
         ToastMessage("Face verification successful!");
         setLoading(false);
-        
+
         // Navigate to success page
         navigation.navigate("SuccessPage", {
           isAccountCreated: isAccountCreated,

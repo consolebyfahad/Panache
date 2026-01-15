@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { Dimensions, Image, ScrollView, StyleSheet, View } from "react-native";
+import {
+  Dimensions,
+  Image,
+  InteractionManager,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { openCamera, openPicker } from "react-native-image-crop-picker";
 
 import { useNavigation } from "@react-navigation/native";
@@ -92,7 +99,10 @@ const EditProfile = () => {
 
       if (userData?.user_gallery) {
         try {
-          fixedData = JSON.parse(userData.user_gallery);
+          const parsed = JSON.parse(userData.user_gallery);
+          // Ensure parsed data is an array and not null
+          fixedData = Array.isArray(parsed) ? parsed : [];
+
           // Determine if URL is image or video based on extension or path
           const getMediaType = (url) => {
             if (!url) return "video"; // default
@@ -147,6 +157,7 @@ const EditProfile = () => {
 
   // Image functions
   const recordImageFromCamera = () => {
+    console.log("=== recordImageFromCamera START ===");
     try {
       const options = {
         mediaType: "photo",
@@ -154,74 +165,147 @@ const EditProfile = () => {
         cropping: true,
         includeBase64: false,
       };
+      console.log("Camera options:", options);
       setVideoModal(false);
+      console.log("Video modal closed, waiting 500ms before opening camera");
+
       setTimeout(async () => {
-        const result = await openCamera(options);
-        if (result) {
-          uploadAndGetUrl(result, isToken).then((res) => {
-            const url = `http://portal.ivmsgroup.com/panache/images/${res}`;
-            handleMediaSelection(url, "image");
-          });
+        try {
+          console.log("About to call openCamera for image");
+          const result = await openCamera(options);
+          console.log("openCamera returned result:", result);
+
+          if (result) {
+            console.log("Image captured, starting upload...");
+            console.log("Result path:", result.path);
+            console.log("Result size:", result.size);
+
+            uploadAndGetUrl(result, isToken)
+              .then((res) => {
+                console.log("Upload successful, response:", res);
+                const url = `http://portal.ivmsgroup.com/panache/images/${res}`;
+                console.log("Final image URL:", url);
+                handleMediaSelection(url, "image");
+              })
+              .catch((uploadError) => {
+                console.log("Upload error:", uploadError);
+                ToastMessage("Failed to upload image. Please try again.");
+              });
+          } else {
+            console.log("No result from openCamera");
+          }
+        } catch (cameraError) {
+          console.log("Error in openCamera:", cameraError);
+          ToastMessage("Failed to capture image. Please try again.");
         }
       }, 500);
     } catch (error) {
-      console.log("recordImageFromCamera error", error);
+      console.log("recordImageFromCamera error:", error);
     }
+    console.log("=== recordImageFromCamera END ===");
   };
 
   const selectImageFromLibrary = async () => {
+    console.log("=== selectImageFromLibrary START ===");
     try {
       const options = {
         mediaType: "photo",
         quality: 0.8,
         cropping: true,
       };
+      console.log("Picker options:", options);
       setVideoModal(false);
+      console.log("Video modal closed, waiting 1000ms before opening picker");
+
       setTimeout(async () => {
-        const result = await openPicker(options);
-        if (result) {
-          uploadAndGetUrl(result, isToken).then((res) => {
-            const url = `http://portal.ivmsgroup.com/panache/images/${res}`;
-            handleMediaSelection(url, "image");
-          });
+        try {
+          console.log("About to call openPicker for image");
+          const result = await openPicker(options);
+          console.log("openPicker returned result:", result);
+
+          if (result) {
+            console.log("Image selected, starting upload...");
+            console.log("Result path:", result.path);
+            console.log("Result size:", result.size);
+
+            uploadAndGetUrl(result, isToken)
+              .then((res) => {
+                console.log("Upload successful, response:", res);
+                const url = `http://portal.ivmsgroup.com/panache/images/${res}`;
+                console.log("Final image URL:", url);
+                handleMediaSelection(url, "image");
+              })
+              .catch((uploadError) => {
+                console.log("Upload error:", uploadError);
+                ToastMessage("Failed to upload image. Please try again.");
+              });
+          } else {
+            console.log("No result from openPicker");
+          }
+        } catch (pickerError) {
+          console.log("Error in openPicker:", pickerError);
+          ToastMessage("Failed to select image. Please try again.");
         }
       }, 1000);
     } catch (error) {
-      console.log("selectImageFromLibrary error", error);
+      console.log("selectImageFromLibrary error:", error);
     }
+    console.log("=== selectImageFromLibrary END ===");
   };
 
   // Video functions
   const recordVideoFromCamera = () => {
+    console.log("recordVideoFromCamera");
     try {
+      console.log("recordVideoFromCamera 2");
       const options = {
         mediaType: "video",
         videoQuality: "high",
-        durationLimit: 90, // 90 seconds maximum
+        durationLimit: 30, // 30 seconds maximum
         includeBase64: false,
       };
+      console.log("recordVideoFromCamera 3");
       setVideoModal(false);
-      setTimeout(async () => {
-        const result = await openCamera(options);
-        if (result) {
-          // Check video duration
-          if (result.duration && result.duration > 90000) {
-            ToastMessage("Video duration must be 90 seconds or less");
-            return;
-          }
-          if (result.duration && result.duration < 60000) {
-            ToastMessage("Video must be at least 60 seconds long");
-            return;
-          }
 
-          uploadAndGetUrl(result, isToken).then((res) => {
-            const url = `http://portal.ivmsgroup.com/panache/videos/${res}`;
-            handleMediaSelection(url, "video");
-          });
-        }
-      }, 500);
+      // Wait for all interactions (modal closing) to complete before opening camera
+      InteractionManager.runAfterInteractions(() => {
+        // Additional delay to ensure modal is fully closed and UI is stable
+        setTimeout(async () => {
+          try {
+            console.log("recordVideoFromCamera 4");
+            console.log("About to call openCamera with video options");
+            const result = await openCamera(options);
+            console.log("recordVideoFromCamera 5 - Camera returned:", result);
+
+            if (result) {
+              // Check video duration
+              if (result.duration && result.duration > 30000) {
+                ToastMessage("Video duration must be 30 seconds or less");
+                return;
+              }
+              uploadAndGetUrl(result, isToken)
+                .then((res) => {
+                  const url = `http://portal.ivmsgroup.com/panache/videos/${res}`;
+                  handleMediaSelection(url, "video");
+                })
+                .catch((uploadError) => {
+                  console.log("uploadAndGetUrl error", uploadError);
+                  ToastMessage("Failed to upload video. Please try again.");
+                });
+            }
+          } catch (cameraError) {
+            console.log(
+              "recordVideoFromCamera error in setTimeout",
+              cameraError
+            );
+            console.log("Error details:", JSON.stringify(cameraError));
+            ToastMessage("Failed to open camera. Please try again.");
+          }
+        }, 1000);
+      });
     } catch (error) {
       console.log("recordVideoFromCamera error", error);
+      ToastMessage("Failed to open camera. Please try again.");
     }
   };
 
@@ -230,24 +314,28 @@ const EditProfile = () => {
       const options = {
         mediaType: "video",
         videoQuality: "high",
-        durationLimit: 90, // 90 seconds maximum
+        durationLimit: 30, // 30 seconds maximum
       };
+      console.log("selectVideoFromLibrary options:", options);
       setVideoModal(false);
       setTimeout(async () => {
         const result = await openPicker(options);
+        console.log("selectVideoFromLibrary result:", result);
         if (result) {
           // Check video duration
-          if (result.duration && result.duration > 90000) {
-            ToastMessage("Video duration must be 90 seconds or less");
-            return;
-          }
-          if (result.duration && result.duration < 60000) {
-            ToastMessage("Video must be at least 60 seconds long");
+          if (result.duration && result.duration > 30000) {
+            ToastMessage("Video duration must be 30 seconds or less");
+            console.log(
+              "selectVideoFromLibrary result duration:",
+              result.duration
+            );
             return;
           }
 
           uploadAndGetUrl(result, isToken).then((res) => {
+            console.log("selectVideoFromLibrary uploadAndGetUrl result:", res);
             const url = `http://portal.ivmsgroup.com/panache/videos/${res}`;
+            console.log("selectVideoFromLibrary url:", url);
             handleMediaSelection(url, "video");
           });
         }
@@ -258,25 +346,53 @@ const EditProfile = () => {
   };
 
   const handleMediaSelection = (uploadedUrl, type) => {
+    console.log("=== handleMediaSelection START ===");
+    console.log("uploadedUrl:", uploadedUrl);
+    console.log("mediaType:", type);
+    console.log("currentView:", currentView);
+
     setVideoModal(false);
+    console.log("Video modal closed");
 
     // Navigate to face verification screen
-    navigation.navigate("FaceVerification", {
+    const navigationParams = {
       uploadedImageUri: uploadedUrl,
       mediaType: type,
       onVerificationSuccess: () => {
+        console.log("=== onVerificationSuccess callback called ===");
+        console.log("currentView:", currentView);
+        console.log("uploadedUrl:", uploadedUrl);
+        console.log("type:", type);
+
         // After verification success, save the media
-        setViewVideos((prev) => ({
-          ...prev,
-          [currentView]: [{ url: uploadedUrl, type: type }],
-        }));
+        setViewVideos((prev) => {
+          console.log("Previous viewVideos:", prev);
+          const updated = {
+            ...prev,
+            [currentView]: [{ url: uploadedUrl, type: type }],
+          };
+          console.log("Updated viewVideos:", updated);
+          return updated;
+        });
+
         ToastMessage(
           `${
             type === "image" ? "Image" : "Video"
           } uploaded and verified successfully`
         );
+        console.log("Verification success toast shown");
       },
-    });
+    };
+
+    console.log(
+      "Navigation params:",
+      JSON.stringify(navigationParams, null, 2)
+    );
+    console.log("About to navigate to FaceVerification");
+
+    navigation.navigate("FaceVerification", navigationParams);
+    console.log("Navigation to FaceVerification completed");
+    console.log("=== handleMediaSelection END ===");
   };
 
   const handleVideoDelete = (view) => {
@@ -311,7 +427,9 @@ const EditProfile = () => {
       bio: Bio,
       starsign: SelectedSign?.name,
     };
+    console.log("onSubmit data:", data);
     const response = await ApiRequest(data);
+    console.log("onSubmit response:", response);
     if (response?.data?.result) {
       let body = {
         type: "profile",
@@ -319,7 +437,7 @@ const EditProfile = () => {
       };
       const profileApi = await ApiRequest(body);
       dispatch(setUserData(profileApi?.data?.profile));
-      navigate.goBack();
+      navigation.goBack();
       setLoading(false);
       ToastMessage(response?.data?.message);
     } else {
@@ -435,7 +553,9 @@ const EditProfile = () => {
         marginBottom={5}
       />
       <CustomText
-        label={"Add images or record 60-90 second videos to showcase yourself"}
+        label={
+          "Add images or record up to 30 second videos to showcase yourself"
+        }
         color={COLORS.gray}
         fontFamily={fonts.medium}
         fontSize={12}
@@ -758,7 +878,7 @@ const EditProfile = () => {
             color={COLORS.white}
           />
           <CustomText
-            label="Choose image or record 60-90 second video"
+            label="Choose image or record up to 30 second video"
             fontSize={12}
             fontFamily={fonts.regular}
             alignSelf="center"
