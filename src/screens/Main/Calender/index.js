@@ -23,9 +23,11 @@ const MyCalendar = ({ navigation }) => {
 
   if (userData?.timings && userData?.timings != null) {
     try {
-      timings = JSON.parse(userData?.timings);
+      const parsed = JSON.parse(userData?.timings);
+      timings = Array.isArray(parsed) ? parsed : [];
+      console.log("[Calendar] Parsed timings:", timings?.length, timings);
     } catch (error) {
-      console.error("Error parsing user timings:", error);
+      console.error("[Calendar] Error parsing user timings:", error);
       timings = [];
     }
   }
@@ -34,8 +36,13 @@ const MyCalendar = ({ navigation }) => {
   if (userData?.specific_dates && userData?.specific_dates != null) {
     try {
       specificDates = JSON.parse(userData?.specific_dates);
+      console.log(
+        "[Calendar] Parsed specific_dates:",
+        Object.keys(specificDates || {}),
+        specificDates
+      );
     } catch (error) {
-      console.error("Error parsing specific dates:", error);
+      console.error("[Calendar] Error parsing specific dates:", error);
       specificDates = {};
     }
   }
@@ -43,17 +50,17 @@ const MyCalendar = ({ navigation }) => {
   const isToken = useSelector((state) => state.authConfig.token);
   const [Loading, setLoading] = useState(false);
   const dispatch = useDispatch();
-  
+
   // Toggle between weekly and calendar view
   const [viewMode, setViewMode] = useState("weekly"); // "weekly" or "calendar"
-  
+
   // Current month for calendar view
   const [currentMonth, setCurrentMonth] = useState(moment());
-  
+
   // Selected date for override
   const [selectedDate, setSelectedDate] = useState(null);
   const [showOverrideModal, setShowOverrideModal] = useState(false);
-  
+
   // Specific date overrides storage
   const [dateOverrides, setDateOverrides] = useState(specificDates);
 
@@ -86,19 +93,37 @@ const MyCalendar = ({ navigation }) => {
   const [overrideFromTime, setOverrideFromTime] = useState(new Date());
   const [overrideToTime, setOverrideToTime] = useState(new Date());
   const [overrideIsAvailable, setOverrideIsAvailable] = useState(true);
+  const [isOverrideTimePicker, setIsOverrideTimePicker] = useState(false);
 
   const handleToggle = (index, value) => {
+    console.log("[Calendar] handleToggle", {
+      index,
+      value,
+      day: availability[index]?.day,
+    });
+    if (index < 0 || index >= availability.length) return;
     const updatedAvailability = [...availability];
-    updatedAvailability[index].isEnabled = value;
+    const daySlot = updatedAvailability[index];
+    if (!daySlot) return;
+    daySlot.isEnabled = value;
     setAvailability(updatedAvailability);
   };
 
   const handleSetTime = (index, isFromTime, time) => {
+    console.log("[Calendar] handleSetTime", {
+      index,
+      isFromTime,
+      time: time?.toISOString?.(),
+      day: availability[index]?.day,
+    });
+    if (index < 0 || index >= availability.length) return;
     const updatedAvailability = [...availability];
+    const daySlot = updatedAvailability[index];
+    if (!daySlot) return;
     if (isFromTime) {
-      updatedAvailability[index].fromTime = time;
+      daySlot.fromTime = time;
     } else {
-      updatedAvailability[index].toTime = time;
+      daySlot.toTime = time;
     }
     setAvailability(updatedAvailability);
   };
@@ -127,16 +152,36 @@ const MyCalendar = ({ navigation }) => {
   // Check if a specific date has availability
   const getDateAvailability = (date) => {
     const dateStr = date.format("YYYY-MM-DD");
-    
+
     // Check for specific override first
     if (dateOverrides[dateStr]) {
+      console.log(
+        "[Calendar] getDateAvailability override",
+        dateStr,
+        dateOverrides[dateStr]
+      );
       return dateOverrides[dateStr];
     }
-    
+
     // Fall back to weekly schedule
     const dayOfWeek = date.day();
-    const daySchedule = availability[dayOfWeek === 0 ? 6 : dayOfWeek - 1];
-    
+    const scheduleIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const daySchedule = availability[scheduleIndex];
+
+    if (!daySchedule) {
+      console.log(
+        "[Calendar] getDateAvailability no schedule",
+        dateStr,
+        scheduleIndex
+      );
+      return {
+        isEnabled: false,
+        fromTime: new Date(),
+        toTime: new Date(),
+        isOverride: false,
+      };
+    }
+
     return {
       isEnabled: daySchedule.isEnabled,
       fromTime: daySchedule.fromTime,
@@ -147,35 +192,46 @@ const MyCalendar = ({ navigation }) => {
 
   // Handle date selection in calendar
   const handleDatePress = (date) => {
-    setSelectedDate(date);
     const dateStr = date.format("YYYY-MM-DD");
+    console.log("[Calendar] handleDatePress", dateStr);
+    setSelectedDate(date);
     const existing = dateOverrides[dateStr];
-    
+
     if (existing) {
+      console.log("[Calendar] handleDatePress existing override", existing);
       setOverrideIsAvailable(existing.isEnabled);
       setOverrideFromTime(new Date(existing.fromTime));
       setOverrideToTime(new Date(existing.toTime));
     } else {
       const dayAvailability = getDateAvailability(date);
+      console.log(
+        "[Calendar] handleDatePress weekly availability",
+        dayAvailability
+      );
       setOverrideIsAvailable(dayAvailability.isEnabled);
       setOverrideFromTime(dayAvailability.fromTime);
       setOverrideToTime(dayAvailability.toTime);
     }
-    
+
     setShowOverrideModal(true);
   };
 
   // Save date override
   const saveOverride = () => {
     const dateStr = selectedDate.format("YYYY-MM-DD");
+    console.log("[Calendar] saveOverride", dateStr, {
+      overrideIsAvailable,
+      overrideFromTime: overrideFromTime?.toISOString?.(),
+      overrideToTime: overrideToTime?.toISOString?.(),
+    });
     const newOverrides = { ...dateOverrides };
-    
+
     newOverrides[dateStr] = {
       isEnabled: overrideIsAvailable,
       fromTime: overrideFromTime.toISOString(),
       toTime: overrideToTime.toISOString(),
     };
-    
+
     setDateOverrides(newOverrides);
     setShowOverrideModal(false);
     ToastMessage(`Override set for ${selectedDate.format("MMM DD, YYYY")}`);
@@ -184,6 +240,7 @@ const MyCalendar = ({ navigation }) => {
   // Remove date override
   const removeOverride = () => {
     const dateStr = selectedDate.format("YYYY-MM-DD");
+    console.log("[Calendar] removeOverride", dateStr);
     const newOverrides = { ...dateOverrides };
     delete newOverrides[dateStr];
     setDateOverrides(newOverrides);
@@ -192,27 +249,48 @@ const MyCalendar = ({ navigation }) => {
   };
 
   const uploadavailability = async () => {
+    console.log("[Calendar] uploadavailability START", {
+      availability,
+      dateOverrides,
+      isToken,
+    });
     setLoading(true);
-    let body = {
-      type: "update_data",
-      table_name: "users",
-      timings: JSON.stringify(availability),
-      specific_dates: JSON.stringify(dateOverrides),
-      id: isToken,
-    };
-    const response = await ApiRequest(body);
-    if (response?.data?.result) {
-      let body = {
-        type: "profile",
-        user_id: isToken,
-      };
-      const profileApi = await ApiRequest(body);
-      dispatch(setUserData(profileApi?.data?.profile));
-      setLoading(false);
-      navigation.goBack();
-      ToastMessage(response?.data?.message);
-    } else {
-      ToastMessage(response?.data?.message);
+    try {
+      const formData = new FormData();
+      formData.append("type", "update_data");
+      formData.append("table_name", "users");
+      formData.append("timings", JSON.stringify(availability));
+      formData.append("specific_dates", JSON.stringify(dateOverrides));
+      formData.append("id", isToken);
+
+      console.log("[Calendar] uploadavailability body", formData);
+      const response = await ApiRequest(formData);
+      console.log("[Calendar] uploadavailability response.data", response);
+      if (response?.data?.result) {
+        const profileBody = {
+          type: "profile",
+          user_id: isToken,
+        };
+        const profileApi = await ApiRequest(profileBody);
+        dispatch(setUserData(profileApi?.data?.profile));
+        setLoading(false);
+        navigation.goBack();
+        console.log("[Calendar] uploadavailability SUCCESS");
+        ToastMessage(response?.data?.message || "Availability updated");
+      } else {
+        console.log(
+          "[Calendar] uploadavailability result false",
+          response?.data?.message
+        );
+        const errorMsg =
+          response?.data?.message ||
+          "Failed to update availability. Please try again.";
+        ToastMessage(errorMsg);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error("[Calendar] uploadavailability error:", error);
+      ToastMessage("Something went wrong. Please try again.");
       setLoading(false);
     }
   };
@@ -241,7 +319,10 @@ const MyCalendar = ({ navigation }) => {
             styles.viewToggleButton,
             viewMode === "weekly" && styles.viewToggleButtonActive,
           ]}
-          onPress={() => setViewMode("weekly")}
+          onPress={() => {
+            console.log("[Calendar] View mode -> weekly");
+            setViewMode("weekly");
+          }}
         >
           <CustomText
             label={"Weekly Schedule"}
@@ -255,7 +336,10 @@ const MyCalendar = ({ navigation }) => {
             styles.viewToggleButton,
             viewMode === "calendar" && styles.viewToggleButtonActive,
           ]}
-          onPress={() => setViewMode("calendar")}
+          onPress={() => {
+            console.log("[Calendar] View mode -> calendar");
+            setViewMode("calendar");
+          }}
         >
           <CustomText
             label={"Calendar View"}
@@ -273,90 +357,103 @@ const MyCalendar = ({ navigation }) => {
         {viewMode === "weekly" ? (
           // Weekly Schedule View
           <>
-            {availability.map((day, index) => (
-              <View key={index} style={styles.availbilityContainer}>
-                <View style={styles.availbilityText}>
-                  <CustomText
-                    label={day.day}
-                    color={COLORS.white}
-                    fontFamily={fonts.bold}
-                    fontSize={16}
-                  />
-                  <Toggle
-                    trackBar={{
-                      height: 30,
-                      width: 80,
-                      activeBackgroundColor: COLORS.primaryColor,
-                      inActiveBackgroundColor: COLORS.bg,
-                    }}
-                    trackBarStyle={{
-                      width: 60,
-                    }}
-                    thumbStyle={{
-                      width: 25,
-                      height: 25,
-                      backgroundColor: "#fff",
-                    }}
-                    value={day.isEnabled}
-                    onPress={() => handleToggle(index, !day.isEnabled)}
-                  />
-                </View>
-
-                {day.isEnabled && (
-                  <View style={styles.timeRow}>
-                    <View style={{ width: "45%" }}>
-                      <CustomText
-                        label={"From"}
-                        color={COLORS.gray}
-                        fontFamily={fonts.regular}
-                        fontSize={12}
-                        marginLeft={5}
-                      />
-                      <TouchableOpacity
-                        style={styles.time}
-                        onPress={() => {
-                          setSelectedDayIndex(index);
-                          setIsSettingFromTime(true);
-                          setOpenTime(true);
-                        }}
-                      >
-                        <CustomText
-                          label={moment(day.fromTime).format("h:mm A")}
-                          color={COLORS.white}
-                          fontFamily={fonts.regular}
-                          fontSize={12}
-                        />
-                      </TouchableOpacity>
-                    </View>
-
-                    <View style={{ width: "45%" }}>
-                      <CustomText
-                        label={"To"}
-                        color={COLORS.gray}
-                        fontFamily={fonts.regular}
-                        fontSize={12}
-                        marginLeft={5}
-                      />
-                      <TouchableOpacity
-                        style={styles.time}
-                        onPress={() => {
-                          setSelectedDayIndex(index);
-                          setIsSettingFromTime(false);
-                          setOpenTime(true);
-                        }}
-                      >
-                        <CustomText
-                          label={moment(day.toTime).format("h:mm A")}
-                          color={COLORS.white}
-                          fontFamily={fonts.regular}
-                          fontSize={12}
-                        />
-                      </TouchableOpacity>
-                    </View>
+            {availability.map((day, index) => {
+              if (!day) return null;
+              return (
+                <View key={index} style={styles.availbilityContainer}>
+                  <View style={styles.availbilityText}>
+                    <CustomText
+                      label={day.day}
+                      color={COLORS.white}
+                      fontFamily={fonts.bold}
+                      fontSize={16}
+                    />
+                    <Toggle
+                      trackBar={{
+                        height: 30,
+                        width: 80,
+                        activeBackgroundColor: COLORS.primaryColor,
+                        inActiveBackgroundColor: COLORS.bg,
+                      }}
+                      trackBarStyle={{
+                        width: 60,
+                      }}
+                      thumbStyle={{
+                        width: 25,
+                        height: 25,
+                        backgroundColor: "#fff",
+                      }}
+                      value={day.isEnabled}
+                      onPress={() => handleToggle(index, !day.isEnabled)}
+                    />
                   </View>
-                )}
-              </View>
-            ))}
+
+                  {day.isEnabled && (
+                    <View style={styles.timeRow}>
+                      <View style={{ width: "45%" }}>
+                        <CustomText
+                          label={"From"}
+                          color={COLORS.gray}
+                          fontFamily={fonts.regular}
+                          fontSize={12}
+                          marginLeft={5}
+                        />
+                        <TouchableOpacity
+                          style={styles.time}
+                          onPress={() => {
+                            setIsOverrideTimePicker(false);
+                            setSelectedDayIndex(index);
+                            setIsSettingFromTime(true);
+                            setOpenTime(true);
+                          }}
+                        >
+                          <CustomText
+                            label={
+                              day.fromTime
+                                ? moment(day.fromTime).format("h:mm A")
+                                : "--"
+                            }
+                            color={COLORS.white}
+                            fontFamily={fonts.regular}
+                            fontSize={12}
+                          />
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={{ width: "45%" }}>
+                        <CustomText
+                          label={"To"}
+                          color={COLORS.gray}
+                          fontFamily={fonts.regular}
+                          fontSize={12}
+                          marginLeft={5}
+                        />
+                        <TouchableOpacity
+                          style={styles.time}
+                          onPress={() => {
+                            setIsOverrideTimePicker(false);
+                            setSelectedDayIndex(index);
+                            setIsSettingFromTime(false);
+                            setOpenTime(true);
+                          }}
+                        >
+                          <CustomText
+                            label={
+                              day.toTime
+                                ? moment(day.toTime).format("h:mm A")
+                                : "--"
+                            }
+                            color={COLORS.white}
+                            fontFamily={fonts.regular}
+                            fontSize={12}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
           </>
         ) : (
           // Calendar View
@@ -492,7 +589,11 @@ const MyCalendar = ({ navigation }) => {
                 />
               </View>
               <View style={styles.legendItem}>
-                <CustomText label={"•"} color={COLORS.primaryColor} fontSize={20} />
+                <CustomText
+                  label={"•"}
+                  color={COLORS.primaryColor}
+                  fontSize={20}
+                />
                 <CustomText
                   label={"Override"}
                   color={COLORS.gray}
@@ -511,25 +612,67 @@ const MyCalendar = ({ navigation }) => {
         marginBottom={40}
       />
 
-      {/* Weekly Time Picker */}
-      {openTime && (
-        <DatePicker
-          onCancel={() => setOpenTime(false)}
-          open={openTime}
-          date={
-            isSettingFromTime
-              ? availability[selectedDayIndex].fromTime
-              : availability[selectedDayIndex].toTime
+      {/* Time Picker - used for both weekly schedule and override modal */}
+      {openTime &&
+        (() => {
+          const fallbackDate = new Date();
+          let pickerDate = fallbackDate;
+
+          if (isOverrideTimePicker) {
+            pickerDate = isSettingFromTime ? overrideFromTime : overrideToTime;
+            console.log("[Calendar] Time picker OPEN (override)", {
+              isSettingFromTime,
+              pickerDate: pickerDate?.toISOString?.(),
+            });
+          } else {
+            const selectedDay =
+              selectedDayIndex != null && availability[selectedDayIndex];
+            pickerDate = selectedDay
+              ? isSettingFromTime
+                ? selectedDay.fromTime
+                : selectedDay.toTime
+              : fallbackDate;
+            console.log("[Calendar] Time picker OPEN (weekly)", {
+              selectedDayIndex,
+              isSettingFromTime,
+              day: selectedDay?.day,
+              pickerDate: pickerDate?.toISOString?.(),
+            });
           }
-          onConfirm={(time) => {
-            handleSetTime(selectedDayIndex, isSettingFromTime, time);
-            setOpenTime(false);
-          }}
-          theme="dark"
-          mode="time"
-          modal
-        />
-      )}
+
+          return (
+            <DatePicker
+              onCancel={() => {
+                console.log("[Calendar] Time picker CANCEL");
+                setOpenTime(false);
+                setIsOverrideTimePicker(false);
+              }}
+              open={openTime}
+              date={pickerDate}
+              onConfirm={(time) => {
+                console.log("[Calendar] Time picker CONFIRM", {
+                  isOverrideTimePicker,
+                  isSettingFromTime,
+                  time: time?.toISOString?.(),
+                });
+                if (isOverrideTimePicker) {
+                  if (isSettingFromTime) {
+                    setOverrideFromTime(time);
+                  } else {
+                    setOverrideToTime(time);
+                  }
+                } else {
+                  handleSetTime(selectedDayIndex, isSettingFromTime, time);
+                }
+                setOpenTime(false);
+                setIsOverrideTimePicker(false);
+              }}
+              theme="dark"
+              mode="time"
+              modal
+            />
+          );
+        })()}
 
       {/* Override Modal */}
       {showOverrideModal && selectedDate && (
@@ -584,6 +727,11 @@ const MyCalendar = ({ navigation }) => {
                   <TouchableOpacity
                     style={styles.timePickerButton}
                     onPress={() => {
+                      console.log(
+                        "[Calendar] Override modal: open From time picker",
+                        overrideFromTime?.toISOString?.()
+                      );
+                      setIsOverrideTimePicker(true);
                       setIsSettingFromTime(true);
                       setOpenTime(true);
                     }}
@@ -606,6 +754,11 @@ const MyCalendar = ({ navigation }) => {
                   <TouchableOpacity
                     style={styles.timePickerButton}
                     onPress={() => {
+                      console.log(
+                        "[Calendar] Override modal: open To time picker",
+                        overrideToTime?.toISOString?.()
+                      );
+                      setIsOverrideTimePicker(true);
                       setIsSettingFromTime(false);
                       setOpenTime(true);
                     }}
@@ -637,7 +790,11 @@ const MyCalendar = ({ navigation }) => {
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setShowOverrideModal(false)}
               >
-                <CustomText label={"Cancel"} color={COLORS.gray} fontSize={14} />
+                <CustomText
+                  label={"Cancel"}
+                  color={COLORS.gray}
+                  fontSize={14}
+                />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.saveButton]}
@@ -648,26 +805,6 @@ const MyCalendar = ({ navigation }) => {
             </View>
           </View>
         </View>
-      )}
-
-      {/* Override Time Picker */}
-      {showOverrideModal && openTime && (
-        <DatePicker
-          onCancel={() => setOpenTime(false)}
-          open={openTime}
-          date={isSettingFromTime ? overrideFromTime : overrideToTime}
-          onConfirm={(time) => {
-            if (isSettingFromTime) {
-              setOverrideFromTime(time);
-            } else {
-              setOverrideToTime(time);
-            }
-            setOpenTime(false);
-          }}
-          theme="dark"
-          mode="time"
-          modal
-        />
       )}
     </ScreenWrapper>
   );

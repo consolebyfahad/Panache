@@ -50,7 +50,7 @@ const CountryPhoneInput = ({
           onBlur: handleBlur,
           onEndEditing,
         }}
-        renderDropdownImage={() => null}
+        renderDropdownImage={<View style={{ width: 0, height: 0 }} />}
         countryPickerButtonStyle={{
           backgroundColor: COLORS.inputBorder,
           color: COLORS.white,
@@ -58,7 +58,6 @@ const CountryPhoneInput = ({
         codeTextStyle={[styles.phoneInput, { marginLeft: -8 }]}
         containerStyle={[
           styles.phoneInputContainer,
-          ,
           {
             borderColor: error
               ? COLORS.red

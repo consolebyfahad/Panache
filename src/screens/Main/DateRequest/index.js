@@ -34,11 +34,9 @@ const Request = ({ route, navigation }) => {
   const [DateData, setDateData] = useState([]);
   const [isRjectLoading, setisRjectLoading] = useState(false);
 
-  const [eventId, setEventId] = useState('');
+  const [eventId, setEventId] = useState("");
   const [calendars, setCalendars] = useState([]);
   const [pickedCal, setPickedCal] = useState(null);
-
-  
 
   const data = route?.params?.data?.user_profile
     ? route?.params?.data?.user_profile
@@ -75,7 +73,9 @@ const Request = ({ route, navigation }) => {
       status: status,
       id: isPopup ? popupId : dateId,
     };
+    console.log("apidata", JSON.stringify(apidata));
     const response = await ApiRequest(apidata);
+    console.log("response", JSON.stringify(response));
     if (response?.data?.result) {
       ToastMessage(`Request ${status}`);
       AddToCalender();
@@ -105,13 +105,11 @@ const Request = ({ route, navigation }) => {
     }
   };
 
-
-
   useEffect(() => {
     async function loadCalendars() {
       try {
         const perms = await RNCalendarEvents.requestPermissions();
-        if (perms === 'authorized') {
+        if (perms === "authorized") {
           const allCalendars = await RNCalendarEvents.findCalendars();
           const primaryCal = allCalendars.find(
             (cal) => cal.isPrimary && cal.allowsModifications
@@ -119,16 +117,14 @@ const Request = ({ route, navigation }) => {
           setCalendars(allCalendars);
           setPickedCal(primaryCal);
         } else {
-          console.log('Calendar permission denied.');
+          console.log("Calendar permission denied.");
         }
       } catch (error) {
-        console.log('Error while fetching calendars:', error);
+        console.log("Error while fetching calendars:", error);
       }
     }
 
-    if (Platform.OS === 'android') {
-      loadCalendars();
-    }
+    loadCalendars();
   }, []);
 
   const requestCalendarPermission = async () => {
@@ -141,27 +137,40 @@ const Request = ({ route, navigation }) => {
           buttonPositive: "OK",
         }
       );
-  
+
       return granted === PermissionsAndroid.RESULTS.GRANTED;
     }
-    return true; // iOS doesn't require this explicit permission
+    if (Platform.OS === "ios") {
+      const status = await RNCalendarEvents.requestPermissions();
+      const authorized = status === "authorized";
+      if (!authorized) {
+        console.log("iOS calendar permission:", status);
+      }
+      return authorized;
+    }
+    return true;
   };
-  
+
   const AddToCalender = async () => {
     const hasPermission = await requestCalendarPermission();
     if (!hasPermission) {
-      Alert.alert("Permission required", "Please allow calendar access in settings.");
+      Alert.alert(
+        "Calendar access required",
+        "Please allow calendar access in Settings to add this date to your calendar.",
+        [{ text: "OK" }]
+      );
       return;
     }
 
-  
     const date = DateData?.[0]?.datetime;
     const formattedDate = moment(date, "MMM DD, YYYY hh:mm A").toISOString();
-    const onehourmore = moment(date, "MMM DD, YYYY hh:mm A").add(1, "hours").toISOString();
-  
+    const onehourmore = moment(date, "MMM DD, YYYY hh:mm A")
+      .add(1, "hours")
+      .toISOString();
+
     try {
       const eventDetails = {
-        calendarId: Platform.OS === 'android' ? pickedCal?.id : undefined,
+        calendarId: Platform.OS === "android" ? pickedCal?.id : undefined,
         title: `A Date With ${data?.first_name + " " + data?.last_name}`,
         startDate: formattedDate,
         endDate: onehourmore,
@@ -169,12 +178,15 @@ const Request = ({ route, navigation }) => {
         notes: "",
         alarms: [{ date: -30 }],
       };
-  
+
       console.log("Event Details:", eventDetails);
-  
-      const eventId = await RNCalendarEvents.saveEvent(eventDetails.title, eventDetails);
+
+      const eventId = await RNCalendarEvents.saveEvent(
+        eventDetails.title,
+        eventDetails
+      );
       console.log("Event ID:", eventId);
-  
+
       if (eventId) {
         Alert.alert("Success", "Date has been added to your phone calendar", [
           { text: "OK", onPress: () => navigation.navigate("Home") },
@@ -185,7 +197,6 @@ const Request = ({ route, navigation }) => {
       console.log("Calendar Error:", error);
     }
   };
-  
 
   return (
     <ScreenWrapper

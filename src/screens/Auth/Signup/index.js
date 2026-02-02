@@ -116,29 +116,30 @@ const Signup = ({ navigation }) => {
       password: state.password,
       gender: selectedName,
     };
+    console.log("body", body);
     const response = await ApiRequest(body);
+    console.log("response", JSON.stringify(response));
     if (response?.data?.result == true) {
       setLoading(false);
       ToastMessage(response?.data?.message);
-      // navigation.navigate("OTPScreen", {
+      navigation.navigate("OTPScreen", {
+        isAccountCreated: true,
+        signupData: response?.data,
+        phone: state.phone,
+      });
+      // navigation.navigate("FaceRecog", {
       //   isAccountCreated: true,
       //   signupData: response?.data,
       //   phone: state.phone,
       // });
-        navigation.navigate("FaceRecog", {
-          isAccountCreated: true,
-          signupData: response?.data,
-          phone: state.phone,
-      });
     } else {
       setLoading(false);
       ToastMessage(response?.data?.message);
     }
   };
   const array = [
-  
     {
-      id: 2,
+      id: 1,
       placeholder: "First Name",
       value: state.fname,
       onChange: (text) => setState({ ...state, fname: text }),
@@ -146,13 +147,12 @@ const Signup = ({ navigation }) => {
       isprofile: true,
     },
     {
-      id: 3,
+      id: 2,
       placeholder: "Last Name",
       value: state.lname,
       onChange: (text) => setState({ ...state, lname: text }),
       error: errors.lnameError,
     },
-
     {
       id: 3,
       placeholder: "Email Address",
@@ -168,7 +168,6 @@ const Signup = ({ navigation }) => {
       error: errors.phoneError,
       onChange: (text) => setState({ ...state, phone: text }),
     },
-
     {
       id: 5,
       placeholder: "Password",
@@ -188,7 +187,7 @@ const Signup = ({ navigation }) => {
   const errorCheck = useMemo(() => {
     return () => {
       let newErrors = {};
-       if (!state.fname) newErrors.fnameError = "Please enter First Name";
+      if (!state.fname) newErrors.fnameError = "Please enter First Name";
       else if (!state.lname) newErrors.lnameError = "Please enter Last Name";
       else if (state.fname.length < 4)
         newErrors.fnameError = "First name at least 4 characters";
@@ -241,10 +240,9 @@ const Signup = ({ navigation }) => {
         marginBottom={20}
       />
       {array.map((item) => (
-        <>
-          {item.id == 4 ? (
+        <React.Fragment key={item.id}>
+          {item.id === 4 ? (
             <CountryPhoneInput
-              key={item.id}
               setValue={item.onChange}
               value={item.value}
               error={item.error}
@@ -253,16 +251,15 @@ const Signup = ({ navigation }) => {
           ) : (
             <CustomInput
               withLabel={item.withLabel}
-              key={item?.id}
               placeholder={item.placeholder}
               value={item.value}
               onChangeText={item.onChange}
               error={item.error}
-              secureTextEntry={item?.id == 5 || item?.id == 6}
+              secureTextEntry={item?.id === 5 || item?.id === 6}
               autoCapitalize={item.autoCapitalize}
             />
           )}
-        </>
+        </React.Fragment>
       ))}
 
       <CustomText
